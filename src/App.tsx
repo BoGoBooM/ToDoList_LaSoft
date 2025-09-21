@@ -1,60 +1,42 @@
-import React, { useMemo, useState } from 'react';
+import React, { useReducer, useState, useMemo, useCallback, useContext, useEffect } from 'react';
+import { todoReducer } from './reducers/todoReducer';
+import { Status } from './types/Todo';
+import { TodoInput } from './components/TodoInput';
+import { TodoList } from './components/TodoList';
+import { TodoFilter } from './components/TodoFilter';
+import { TodoTheme } from './components/TodoTheme';
+import { ThemeContext } from './ThemeContext';
 import './App.css';
 
-interface Todo {
-  id: number;
-  title: string;
-  completed: boolean;
-}
-
-enum Status {
-  All = 'All',
-  Completed = 'Completed',
-  Active = 'Active',
-}
-
 export const App: React.FC = () => {
-  const [todos, setTodos] = useState<Todo[]>([]);
+  const [todos, dispatch] = useReducer(todoReducer, []);
   const [newTodo, setNewTodo] = useState('');
   const [filterStatus, setFilterStatus] = useState<Status>(Status.All);
 
-  const addTodo = () => {
-    if (newTodo.trim() === '') {
-      return;
+  const { theme } = useContext(ThemeContext);
+
+  const addTodo = useCallback(() => {
+    if (newTodo.trim()) {
+      dispatch({ type: 'add', title: newTodo.trim() });
+      setNewTodo('');
     }
+  }, [newTodo]);
 
-    setTodos(prev => [
-      ...prev,
-      { id: Date.now(), title: newTodo.trim(), completed: false },
-    ]);
+  const toggleTodo = useCallback((id: number) => {
+    dispatch({ type: 'toggle', id });
+  }, []);
 
-    setNewTodo('');
-  };
+  const toggleAll = useCallback(() => {
+    dispatch({ type: 'toggleAll' });
+  }, []);
 
-  const toggleTodo = (id: number) => {
-    setTodos(prev => (
-      prev.map(todo => (
-        todo.id === id ? { ...todo, completed: !todo.completed } : todo
-      ))
-    ));
-  };
+  const deleteTodo = useCallback((id: number) => {
+    dispatch({ type: 'delete', id });
+  }, []);
 
-  const toggleAll = () => {
-    const allCompleted = todos.every(todo => todo.completed);
-    setTodos(todos.map(todo => ({ ...todo, completed: !allCompleted })))
-  };
-
-  const deleteTodo = (id: number) => {
-    setTodos(prev => prev.filter(todo => todo.id !== id));
-  };
-
-  const todosCompleted = todos.filter(todo => todo.completed).length;
-
-  const todosActive = todos.filter(todo => !todo.completed).length;
-
-  const handleClearCompleted = () => {
-    setTodos(todos.filter(todo => !todo.completed));
-  }
+  const handleClearCompleted = useCallback(() => {
+    dispatch({ type: 'clearCompleted' });
+  }, []);
 
   const visibleTodos = useMemo(() => {
     switch (filterStatus) {
@@ -67,22 +49,26 @@ export const App: React.FC = () => {
     }
   }, [filterStatus, todos]);
 
+
+  const todosCompleted = todos.filter(todo => todo.completed).length;
+  const todosActive = todos.filter(todo => !todo.completed).length;
+
+
+  useEffect(() => {
+    document.body.style.background = theme.background;
+  }, [theme]);
+
+
   return (
-    <div className="todoapp">
-      <h1 className="todoapp__title">Todos</h1>
+    <div className="todoapp" style={{ background: theme.cardBG }}>
+      <h1 className="todoapp__title" style={{ color: theme.todosText }}>Todos</h1>
+      <div className="todoapp__switcher">
+        <TodoTheme />
+      </div>
 
-      <input
-        className="todoapp__input"
-        type="text"
-        value={newTodo}
-        onChange={e => setNewTodo(e.target.value)}
-        placeholder="Add new task..."
-      />
+      <TodoInput value={newTodo} onChange={setNewTodo} onAdd={addTodo} />
 
-      <button className="todoapp__button" onClick={addTodo}>Add Todo</button>
-
-      <ul className="todoapp__list">
-
+      <div className="todoapp__wrapper">
         <input
           className="todoapp__checkbox"
           type="checkbox"
@@ -90,43 +76,25 @@ export const App: React.FC = () => {
           checked={todos.length > 0 && todos.every(todo => todo.completed)}
           id="toggleAll"
         />
-        <label className="todoapp__label" htmlFor="toggleAll">Toggle All</label>
+        <label
+          className="todoapp__label" 
+          htmlFor="toggleAll"
+          style={{ color: theme.todosText }}
+        >
+          Toggle All
+        </label>
+      </div>
 
-        {visibleTodos.map(todo => (
-          <li className="todoapp__item" key={todo.id}>
-            <input
-              className="todoapp__input"
-              type="checkbox"
-              checked={todo.completed}
-              onChange={() => toggleTodo(todo.id)}
-            />
-            <span className="todoapp__name" onClick={() => toggleTodo(todo.id)}>{todo.title}</span>
-            <button className="todoapp__button" onClick={() => deleteTodo(todo.id)}>Delete</button>
-          </li>
-        ))}
-      </ul>
+      <TodoList todos={visibleTodos} onToggle={toggleTodo} onDelete={deleteTodo} />
 
-      <nav className="todoapp__filter">
-        {Object.values(Status).map(status => (
-          <a
-            key={status}
-            href={status === Status.All ? `#/` : `#/${status.toLowerCase()}`}
-            className={`todoapp__filter-link ${filterStatus === status ? 'selected' : ''}`}
-            onClick={(e) => {
-              e.preventDefault();
-              setFilterStatus(status);
-            }}
-          >
-            {status}
-          </a>
-        ))}
-      </nav>
+      <TodoFilter filterStatus={filterStatus} setFilterStatus={setFilterStatus} />
 
       <button
         type="button"
         className="todoapp__clear-completed todoapp__button"
         disabled={!todosCompleted}
         onClick={handleClearCompleted}
+        style={{ background: theme.button, color: theme.buttonText }}
       >
         Clear Completed
       </button>
